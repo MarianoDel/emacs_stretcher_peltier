@@ -1,5 +1,4 @@
 //----------------------------------------------
-// #### DEXEL 2CH PROJECT - Custom Board ####
 // ##
 // ## @Author: Med
 // ## @Editor: Emacs - ggtags
@@ -15,23 +14,11 @@
 
 //-- Defines For Configuration -------------------
 //---- Configuration for Hardware Versions -------
-// #define HARDWARE_VERSION_1_1    //fuente 48V->12V en placa control
 #define HARDWARE_VERSION_1_0    //micro F030K6T6
 
-
-// #define SOFTWARE_VERSION_1_1
 #define SOFTWARE_VERSION_1_0
 
-
 //---- Features Configuration -----------------
-// #define USE_TEMP_PROT
-// #define USE_CTROL_FAN_ALWAYS_ON
-
-// -- Freq for the timers
-// #define USE_PWM_16000_FREQ_1KHZ
-#define USE_PWM_4000_FREQ_4KHZ
-// #define USE_PWM_8000_FREQ_2KHZ
-// #define USE_
 
 
 //---- End of Features Configuration ----------
@@ -66,16 +53,15 @@
 //GPIOA pin8    
 //GPIOA pin9    
 //GPIOA pin10
-//GPIOA pin11    NC
-
+//GPIOA pin11
 //GPIOA pin12
-#define LED    ((GPIOA->ODR & 0x1000) != 0)
-#define LED_ON    (GPIOA->BSRR = 0x00001000)
-#define LED_OFF    (GPIOA->BSRR = 0x10000000)
-
 //GPIOA pin13
-//GPIOA pin14    
-//GPIOA pin15    NC
+//GPIOA pin14    NC
+
+//GPIOA pin15
+#define LED    ((GPIOA->ODR & 0x8000) != 0)
+#define LED_ON    (GPIOA->BSRR = 0x00008000)
+#define LED_OFF    (GPIOA->BSRR = 0x80000000)
 
 //GPIOB pin3    NC
 
@@ -86,9 +72,29 @@
 //GPIOB pin7    NC
 
 // Exported Types & Macros -----------------------------------------------------
+//--- LED states -----------
+typedef enum
+{    
+    START_BLINKING = 0,
+    WAIT_TO_OFF,
+    WAIT_TO_ON,
+    WAIT_NEW_CYCLE
+} led_state_t;
 
+
+// LED BLINKING commands
+#define LED_NO_BLINKING    0     
+#define LED_TREATMENT_STANDBY    1
+#define LED_TREATMENT_GENERATING    2
+#define LED_TREATMENT_PAUSED    3
+#define LED_TREATMENT_BRIDGE_MODE    5
+
+#define LED_COMMAND_STANDBY    LED_TREATMENT_STANDBY
+#define LED_COMMAND_ACTIVE    LED_TREATMENT_GENERATING
 
 // Module Exported Functions ---------------------------------------------------
+void ChangeLed (unsigned char);
+void UpdateLed (void);
 
 
 #endif    /* _HARD_H_ */

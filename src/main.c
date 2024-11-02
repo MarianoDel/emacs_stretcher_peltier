@@ -35,19 +35,14 @@ typedef enum {
 } main_state_e;
 
 
-// Colors temp ticks
-// #define START_OF_PWM_DIMMER    16
-// #define START_OF_PWM_DIMMER    20
-#define START_OF_PWM_DIMMER    24    //well cleaning the minimum temp
-// #define START_OF_PWM_DIMMER    28    //well cleaning the minimum temp
-#define ANALOG_FOR_PWM_DIMMER    255
-#define START_OF_CONTINUOS_DIMMER    (START_OF_PWM_DIMMER + ANALOG_FOR_PWM_DIMMER)
+// Ntc important points
+#define NTC_FOR_30_DEGREES    2000
+#define NTC_FOR_35_DEGREES    2500
+
 
 // Externals -------------------------------------------------------------------
 // externals for ADC
 volatile unsigned short adc_ch [ADC_CHANNEL_QUANTITY];
-// volatile unsigned char seq_ready;
-
 // externals for timers
 volatile unsigned short wait_ms_var = 0;
 
@@ -77,44 +72,22 @@ int main(void)
         SysTickError();
 
     // Hardware Tests -----------------------------------
-    TF_Hardware_Tests ();
+    // TF_Hardware_Tests ();
     // End Hardware Tests -------------------------------
 
     // Hardware Inits. ---------------------------
+    // Tim Inits
+    TIM_3_Init ();
+    Update_TIM3_CH1 (0);
+
     // Init ADC and DMA
     AdcConfig();
     DMAConfig();
     DMA1_Channel1->CCR |= DMA_CCR_EN;
     ADC1->CR |= ADC_CR_ADSTART;
 
-    // Start of Complete Pote Channel 1
-    TIM_14_Init ();
-    TIM_1_Init_pwm_neg_CH1_trig_CH2 ();
-    
-    // Start of Complete Pote Channel 2
-    TIM_16_Init ();
-    TIM_3_Init_pwm_neg_CH1_trig_CH2 ();
-
-    // Init TIM 17 for Soft or Int init
-    TIM_17_Init ();
-
-    PWM_Soft_Set_Channels (1, 0);
-    PWM_Soft_Set_Channels (2, 0);
-    
-    unsigned short ch1_input_filtered = 0;
-    unsigned short ch2_input_filtered = 0;
-
-//---- for new production mixer    
-    unsigned short ch1_output_filtered = 0;
-    unsigned short ch2_output_filtered = 0;
-//---- end of for new production mixer
-    
-    unsigned short bright = 0;
-    unsigned short temp0 = 0;
-    unsigned short temp1 = 0;
-
-    unsigned int calc = 0;
-    
+    unsigned short preset_filtered = 0;
+    unsigned short ntc_filtered = 0;
     main_state_e main_state = MAIN_HARD_INIT;
 
     while (1)
@@ -122,164 +95,39 @@ int main(void)
         switch (main_state)
         {
         case MAIN_HARD_INIT:
-            
             MA32_U16Circular_Reset (&preset_filter);
             MA32_U16Circular_Reset (&ntc_filter);    
             main_state++;
-            
             break;
 
         case MAIN_RUNNING:
-            
-            if (!timer_standby)
-            {
-                ch1_input_filtered = MA32_U16Circular (&pote_1_filter, Pote_Channel_1);
-                ch2_input_filtered = MA32_U16Circular (&pote_2_filter, Pote_Channel_2);
-                
-//---- new production no mixer                
-                // the max points are in 3970 and min points are 100
-                // bright = 27;    // 25 no prende, 26 prende
-                // temp0 = 3970;
-                // temp1 = 0;
-//---- end of new production no mixer
+            if (timer_standby)
+		break;
 
-//---- new production mixer
-                ch1_input_filtered >>= 4;    // to 255
-                ch2_input_filtered >>= 4;    // to 255
+	    timer_standby = 30;    // 1000/32 steps
 
-                bright = ch1_input_filtered;
-                temp0 = 255 - ch2_input_filtered;
-                temp1 = 255 - temp0;
+	    preset_filtered = MA32_U16Circular (&preset_filter, Pote_Sense);
+	    ntc_filtered = MA32_U16Circular (&ntc_filter, Ntc_Sense);
 
-                calc = temp0 * bright;
-                // calc >>= 4;    // to 4095 1.968A on 29-09-2023
-                calc = calc * 235;    // 10% reduction
-                calc >>= 12;
-                ch1_input_filtered = (unsigned short) calc;
-        
-                calc = temp1 * bright;
-                // calc >>= 4;    // to 4095 2.07A on 29-09-2023
-                calc = calc * 224;    // 15% reduction
-                calc >>= 12;
-                ch2_input_filtered = (unsigned short) calc;
-
-                ch1_output_filtered = MA32_U16Circular (&channel_1_filter, ch1_input_filtered);
-                ch2_output_filtered = MA32_U16Circular (&channel_2_filter, ch2_input_filtered);
-                
-                if (ch1_output_filtered > START_OF_CONTINUOS_DIMMER)
-                {
-                    PWM_Soft_Set_Channels (1, 256);
-                    Update_TIM14_CH1 (ch1_output_filtered - START_OF_PWM_DIMMER);
-                }
-                else if (ch1_output_filtered > (START_OF_PWM_DIMMER - 1))
-                {
-                    ch1_output_filtered -= START_OF_PWM_DIMMER;
-                    PWM_Soft_Set_Channels (1, ch1_output_filtered);
-                    Update_TIM14_CH1 (ANALOG_FOR_PWM_DIMMER);
-                }
-                else
-                {
-                    PWM_Soft_Set_Channels (1, 0);
-                    Update_TIM14_CH1 (ANALOG_FOR_PWM_DIMMER);
-                }
-
-        
-                if (ch2_output_filtered > START_OF_CONTINUOS_DIMMER)
-                {
-                    PWM_Soft_Set_Channels (2, 256);
-                    Update_TIM16_CH1N (ch2_output_filtered - START_OF_PWM_DIMMER);
-                }
-                else if (ch2_output_filtered > (START_OF_PWM_DIMMER - 1))
-                {
-                    ch2_output_filtered -= START_OF_PWM_DIMMER;
-                    PWM_Soft_Set_Channels (2, ch2_output_filtered);
-                    Update_TIM16_CH1N (ANALOG_FOR_PWM_DIMMER);
-                }
-                else
-                {
-                    PWM_Soft_Set_Channels (2, 0);
-                    Update_TIM16_CH1N (ANALOG_FOR_PWM_DIMMER);
-                }                
-//---- end of new production mixer
-                
-//---- last production mixer
-                // // the max points are in 3970
-                // if (ch1_input_filtered > 3970)
-                //     ch1_input_filtered = 3970;
-
-                // if (ch2_input_filtered > 3970)
-                //     ch2_input_filtered = 3970;
-                
-                // // new colors mixer
-                // bright = ch1_input_filtered;
-                // temp0 = 3970 - ch2_input_filtered;
-                // // temp1 = 3970 - temp0;
-                // unsigned short temp_int = temp0;
-                
-                // if (temp_int > 3695)
-                //     temp_int = 3695;
-                
-                // temp1 = 3695 - temp_int;
-
-                // calc = temp0 * bright;
-                // calc >>= 12;    // to 4095
-                // ch1_input_filtered = (unsigned short) calc;
-        
-                // calc = temp1 * bright;
-                // calc >>= 12;    // to 4095
-                // ch2_input_filtered = (unsigned short) calc;
-                // // end of colors mixer
-        
-
-                // if (ch1_input_filtered > START_OF_CONTINUOS_DIMMER)
-                // {
-                //     PWM_Soft_Set_Channels (1, 256);
-                //     Update_TIM14_CH1 (ch1_input_filtered - START_OF_PWM_DIMMER);
-                // }
-                // else if (ch1_input_filtered > (START_OF_PWM_DIMMER - 1))
-                // {
-                //     ch1_input_filtered -= START_OF_PWM_DIMMER;
-                //     PWM_Soft_Set_Channels (1, ch1_input_filtered);
-                //     Update_TIM14_CH1 (ANALOG_FOR_PWM_DIMMER);
-                // }
-                // else
-                // {
-                //     PWM_Soft_Set_Channels (1, 0);
-                //     Update_TIM14_CH1 (ANALOG_FOR_PWM_DIMMER);
-                // }
-
-        
-                // if (ch2_input_filtered > START_OF_CONTINUOS_DIMMER)
-                // {
-                //     PWM_Soft_Set_Channels (2, 256);
-                //     Update_TIM16_CH1N (ch2_input_filtered - START_OF_PWM_DIMMER);
-                // }
-                // else if (ch2_input_filtered > (START_OF_PWM_DIMMER - 1))
-                // {
-                //     ch2_input_filtered -= START_OF_PWM_DIMMER;
-                //     PWM_Soft_Set_Channels (2, ch2_input_filtered);
-                //     Update_TIM16_CH1N (ANALOG_FOR_PWM_DIMMER);
-                // }
-                // else
-                // {
-                //     PWM_Soft_Set_Channels (2, 0);
-                //     Update_TIM16_CH1N (ANALOG_FOR_PWM_DIMMER);
-                // }                
-//---- end of last production mixer
-                
-                timer_standby = 5;
-            }            
+//---- new production
+	    if (ntc_filtered > NTC_FOR_35_DEGREES)
+	    {
+		ChangeLed(LED_COMMAND_ACTIVE);
+		CTRL_FAN1_ON;
+		CTRL_FAN2_ON;
+		Update_TIM3_CH1 (preset_filtered >> 2);		
+	    }
+	    else if (ntc_filtered < NTC_FOR_30_DEGREES)
+	    {
+		ChangeLed(LED_COMMAND_STANDBY);
+		CTRL_FAN1_OFF;
+		CTRL_FAN2_OFF;
+		Update_TIM3_CH1 (0);
+	    }
+//---- end of new production                
             break;
 
         case MAIN_IN_OVERTEMP:
-
-            if (!timer_check_temp)
-            {
-                if (Temp_Channel < TEMP_RECONNECT)
-                    main_state = MAIN_HARD_INIT;
-                
-                timer_check_temp = 2000;    //check again in two seconds            
-            }
             break;
 
         default:
@@ -287,39 +135,9 @@ int main(void)
             break;
         }
 
-#ifdef USE_TEMP_PROT
-        if ((main_state != MAIN_IN_OVERTEMP) &&
-            (!timer_check_temp))
-        {
-            if (Temp_Channel > TEMP_DISCONECT)
-            {
-                // channels reset
-                PWM_Soft_Set_Channels (1, 0);
-                PWM_Soft_Set_Channels (2, 0);                
-                Update_TIM14_CH1 (0);
-                Update_TIM16_CH1N (0);
-                
-                CTRL_FAN_ON;
-                
-                Wait_ms (250);    //give some time for soft pwm updates
-                TIM17Disable();
-
-                
-                main_state = MAIN_IN_OVERTEMP;
-            }
-            else if (Temp_Channel > TEMP_IN_35)
-                CTRL_FAN_ON;
-            else if (Temp_Channel < TEMP_IN_30)
-                CTRL_FAN_OFF;
-
-            timer_check_temp = 2000;    //check again in two seconds
-        }
-#endif    //USE_TEMP_PROT
-        
-#ifdef USE_CTROL_FAN_ALWAYS_ON
-        CTRL_FAN_ON;
-#endif
-
+	// concurrent things
+	UpdateLed ();
+	
     }    //end of while 1
 
     return 0;

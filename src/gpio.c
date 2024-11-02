@@ -83,8 +83,8 @@ void GPIO_Config (void)
         GPIOA_CLK_ON;
 
     temp = GPIOA->MODER;    //2 bits por pin
-    temp &= 0xFCF03CFF;    // PA4 analog; PA7 alternative
-    temp |= 0x010A8300;    // PA8 - PA9 alternative; PA12 out
+    temp &= 0x3FFF3333;    // PA1 analog input; PA3 - PA5 output; PA7 analog input
+    temp |= 0x4000C44C;    // PA15 output
     GPIOA->MODER = temp;
 
     temp = GPIOA->OTYPER;    //1 bit por pin
@@ -93,15 +93,14 @@ void GPIO_Config (void)
     GPIOA->OTYPER = temp;
     
     temp = GPIOA->OSPEEDR;	//2 bits por pin
-    temp &= 0xFCF03FFF;    
-    temp |= 0x00000000;    //PA7 PA8 PA9 PA12 low speed
+    temp &= 0x3FFFF33F;    // PA3 PA5 PA15 low speed
+    temp |= 0x00000000;    
     GPIOA->OSPEEDR = temp;
 
     temp = GPIOA->PUPDR;	//2 bits por pin
     temp &= 0xFFFFFFFF;
     temp |= 0x00000000;
     GPIOA->PUPDR = temp;
-    
 #endif
 
 #ifdef GPIOB_ENABLE
@@ -111,29 +110,27 @@ void GPIO_Config (void)
         GPIOB_CLK_ON;
 
     temp = GPIOB->MODER;    //2 bits por pin
-    temp &= 0xFFFFC03F;    // PB3 out; PB4 - PB6 alternative
-    temp |= 0x00002A40;
+    temp &= 0xFFFFFCFF;    // PB4 alternative
+    temp |= 0x00000200;
     GPIOB->MODER = temp;
 
-    temp = GPIOB->OTYPER;	//1 bit por pin
-    temp &= 0xFFFFFFFF;
-    temp |= 0x00000000;
+    temp = GPIOB->OTYPER;    //1 bit por pin
+    temp &= 0xFFFFFFEF;    // PB4 open-drain
+    temp |= 0x00000010;
     GPIOB->OTYPER = temp;
 
-    temp = GPIOB->OSPEEDR;	//2 bits por pin
-    temp &= 0xFFFFC03F;
-    temp |= 0x00000000;    // PB3, PB4 - PB6 low speed
+    temp = GPIOB->OSPEEDR;    //2 bits por pin
+    temp &= 0xFFFFFCFF;    // PB4 low speed
+    temp |= 0x00000000;
     GPIOB->OSPEEDR = temp;
 
     temp = GPIOB->PUPDR;	//2 bits por pin
     temp &= 0xFFFFFFFF;
     temp |= 0x00000000;
     GPIOB->PUPDR = temp;
-
 #endif
 
 #ifdef GPIOF_ENABLE
-
     //--- GPIO F ---//
     if (!GPIOF_CLK)
         GPIOF_CLK_ON;
@@ -157,7 +154,6 @@ void GPIO_Config (void)
     temp &= 0xFFFFFFFF;
     temp |= 0x00000000;
     GPIOF->PUPDR = temp;
-
 #endif
 
 #ifdef WITH_EXTI
@@ -179,14 +175,16 @@ void GPIO_Config (void)
     
 }
 
+
 inline void EXTIOff (void)
 {
-	EXTI->IMR &= ~0x00000100;
+    EXTI->IMR &= ~0x00000100;
 }
+
 
 inline void EXTIOn (void)
 {
-	EXTI->IMR |= 0x00000100;
+    EXTI->IMR |= 0x00000100;
 }
 
 //--- end of file ---//

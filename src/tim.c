@@ -48,8 +48,6 @@ extern volatile unsigned short wait_ms_var;
 
 
 // Globals ---------------------------------------------------------------------
-volatile unsigned char f_channel_2_int = 0;
-volatile unsigned char f_channel_4_int = 0;
 
 
 // Module Functions ------------------------------------------------------------
@@ -123,19 +121,21 @@ void TIM_3_Init (void)
     //Configuracion del timer.
     TIM3->CR1 = 0x00;    //clk int / 1; upcounting
     TIM3->CR2 = 0x00;
-    TIM3->CCMR1 = 0x0070;    // CH1 output PWM mode 2
+    TIM3->CCMR1 = 0x0060;    // CH1 output PWM mode 1 (active TIM_CNT < TIM_CCR1)
     TIM3->CCMR2 = 0x0000;    // CH4 y CH3 output PWM mode 2
 
-    TIM3->CCER |= TIM_CCER_CC1E;    // CH1 enable on pin
+    TIM3->CCER |= TIM_CCER_CC1E | TIM_CCER_CC1P;    // CH1 enable on pin, polarity reversal
 
-    TIM3->ARR = 255;
+    TIM3->ARR = 1000 - 1;
     TIM3->CNT = 0;
-    TIM3->PSC = 11;		//original
+    TIM3->PSC = 48 - 1;    // 1us tick
 	
-    //Configuracion Pines
-    //Alternate Fuction
-    GPIOA->AFR[0] = 0x11000000;	//PA7 -> AF1; PA6 -> AF1
-    GPIOB->AFR[0] = 0x00000011;	//PB1 -> AF1; PB0 -> AF1
+    // Alternative pin config.
+    unsigned int temp;
+    temp = GPIOB->AFR[0];
+    temp &= 0xFFF0FFFF;
+    temp |= 0x00010000;    // PB4 -> AF1
+    GPIOB->AFR[0] = temp;
 
     // Enable timer ver UDIS
     //TIM3->DIER |= TIM_DIER_UIE;
@@ -332,7 +332,7 @@ void TIM17_IRQHandler (void)
         // else
         //     LED_ON;
 
-        PWM_Soft_Handler_Low_Freq ();
+        // PWM_Soft_Handler_Low_Freq ();
     }    
 }
 

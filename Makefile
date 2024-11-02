@@ -81,7 +81,7 @@ SRC += ./src/tim.c
 # SRC += ./src/uart.c
 # SRC += ./src/flash_program.c
 SRC += ./src/test_functions.c
-# SRC += ./src/pwm.c
+SRC += ./src/hard.c
 
 
 
