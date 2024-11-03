@@ -49,7 +49,7 @@ volatile unsigned short wait_ms_var = 0;
 // Globals ---------------------------------------------------------------------
 //-- Timers globals ----------------------------------
 volatile unsigned short timer_standby = 0;
-volatile unsigned short timer_check_temp = 0;
+volatile unsigned short timer_checks = 0;
 
 //-- for the filters and outputs
 ma32_u16_data_obj_t preset_filter;
@@ -89,6 +89,7 @@ int main(void)
     unsigned short preset_filtered = 0;
     unsigned short ntc_filtered = 0;
     main_state_e main_state = MAIN_HARD_INIT;
+    unsigned char start_sampling = 0;
 
     while (1)
     {
@@ -96,40 +97,63 @@ int main(void)
         {
         case MAIN_HARD_INIT:
             MA32_U16Circular_Reset (&preset_filter);
-            MA32_U16Circular_Reset (&ntc_filter);    
+            MA32_U16Circular_Reset (&ntc_filter);
+	    start_sampling = 1;
             main_state++;
             break;
-
-        case MAIN_RUNNING:
-            if (timer_standby)
-		break;
-
-	    timer_standby = 30;    // 1000/32 steps
-
-	    preset_filtered = MA32_U16Circular (&preset_filter, Pote_Sense);
-	    ntc_filtered = MA32_U16Circular (&ntc_filter, Ntc_Sense);
-
-//---- new production
-	    if (ntc_filtered > NTC_FOR_35_DEGREES)
+	    
+        case MAIN_STANDBY:
+	    if (ntc_filtered > NTC_FOR_32_DEGREES)
 	    {
-		ChangeLed(LED_COMMAND_ACTIVE);
+		ChangeLed(LED_COMMAND_ACTIVE_FAN);
 		CTRL_FAN1_ON;
 		CTRL_FAN2_ON;
-		Update_TIM3_CH1 (preset_filtered >> 2);		
+		main_state = MAIN_ONLY_FAN;
 	    }
-	    else if (ntc_filtered < NTC_FOR_30_DEGREES)
+	    break;
+
+	case MAIN_ONLY_FAN:
+	    if (ntc_filtered > NTC_FOR_35_DEGREES)
+	    {
+		ChangeLed(LED_COMMAND_ACTIVE_PELTIER);
+		main_state = MAIN_SOFT_START_PELTIER;
+
+		// prepair variables for soft-start
+		unsigned short preset = preset_filtered >> 2;
+		if (preset > 100)
+		{
+		    // ex. preset = 1000; timer 2; step 1000
+		    // ex. preset = 100; timer 20; step 100 
+		    timer_standby = 2000 / preset;
+		    timer_steps = 2000 / timer_standby;
+		}
+	    }
+
+	    if (ntc_filtered < NTC_FOR_30_DEGREES)
+	    {
+		ChangeLed(LED_COMMAND_STANDBY);
+		CTRL_FAN1_OFF;
+		CTRL_FAN2_OFF;
+		Update_TIM3_CH1 (0);
+	    }	    
+	    break;
+
+	case MAIN_SOFT_START_PELTIER:
+	    Update_TIM3_CH1 (preset_filtered >> 2);
+            break;
+
+	case MAIN_IN_PELTIER:
+	    Update_TIM3_CH1 (preset_filtered >> 2);
+
+	    if (ntc_filtered < NTC_FOR_30_DEGREES)
 	    {
 		ChangeLed(LED_COMMAND_STANDBY);
 		CTRL_FAN1_OFF;
 		CTRL_FAN2_OFF;
 		Update_TIM3_CH1 (0);
 	    }
-//---- end of new production                
             break;
-
-        case MAIN_IN_OVERTEMP:
-            break;
-
+	    
         default:
             main_state = MAIN_HARD_INIT;
             break;
@@ -137,6 +161,15 @@ int main(void)
 
 	// concurrent things
 	UpdateLed ();
+
+	if ((start_sampling) &&
+	    (!timer_checks))
+	{
+	    timer_checks = 30;    // 1000/32 steps
+	    preset_filtered = MA32_U16Circular (&preset_filter, Pote_Sense);
+	    ntc_filtered = MA32_U16Circular (&ntc_filter, Ntc_Sense);
+	}
+	// end of concurrent things	
 	
     }    //end of while 1
 
@@ -154,8 +187,8 @@ void TimingDelay_Decrement(void)
     if (timer_standby)
         timer_standby--;
 
-    if (timer_check_temp)
-        timer_check_temp--;
+    if (timer_checks)
+        timer_checks--;
     
 }
 
