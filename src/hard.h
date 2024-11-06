@@ -90,11 +90,13 @@ typedef enum
 #define LED_TREATMENT_BRIDGE_MODE    5
 
 #define LED_COMMAND_STANDBY    LED_TREATMENT_STANDBY
-#define LED_COMMAND_ACTIVE    LED_TREATMENT_GENERATING
+#define LED_COMMAND_ACTIVE_FAN    LED_TREATMENT_GENERATING
+#define LED_COMMAND_ACTIVE_PELTIER    LED_TREATMENT_PAUSED
 
 // Module Exported Functions ---------------------------------------------------
 void ChangeLed (unsigned char);
 void UpdateLed (void);
+void HARD_Timeouts (void);
 
 
 #endif    /* _HARD_H_ */

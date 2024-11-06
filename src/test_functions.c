@@ -14,7 +14,6 @@
 #include "tim.h"
 #include "adc.h"
 #include "dma.h"
-#include "temperatures.h"
 
 #include <stdio.h>
 
